@@ -7,7 +7,7 @@ from vcd.gtkw import GTKWSave
 
 from ..tools import flatten
 from ..hdl.ast import *
-from ..hdl.xfrm import ValueVisitor, StatementVisitor
+from ..hdl.xfrm import ValueVisitor, StatementVisitor, LHSGroupAnalyzer, LHSGroupFilter
 
 
 __all__ = ["Simulator", "Delay", "Tick", "Passive", "DeadlineError"]
@@ -529,18 +529,26 @@ class Simulator:
                 statements.append(signal.eq(signal))
             statements += fragment.statements
 
-            compiler = _StatementCompiler(self._signal_slots)
-            funclet = compiler(statements)
-
             def add_funclet(signal, funclet):
                 self._funclets[self._signal_slots[signal]].add(funclet)
 
-            for signal in compiler.sensitivity:
-                add_funclet(signal, funclet)
-            for domain, cd in fragment.domains.items():
-                add_funclet(cd.clk, funclet)
-                if cd.rst is not None:
-                    add_funclet(cd.rst, funclet)
+            lhs_grouper = LHSGroupAnalyzer()
+            lhs_grouper.on_statements(statements)
+
+            for group_signals in lhs_grouper.groups().values():
+                lhs_group_filter = LHSGroupFilter(group_signals)
+
+                compiler = _StatementCompiler(self._signal_slots)
+                funclet  = compiler(lhs_group_filter(statements))
+                for signal in compiler.sensitivity:
+                    add_funclet(signal, funclet)
+
+                for domain, cd in fragment.domains.items():
+                    if domain not in fragment.drivers:
+                        continue
+                    add_funclet(cd.clk, funclet)
+                    if cd.rst is not None:
+                        add_funclet(cd.rst, funclet)
 
         self._user_signals = bitarray(len(self._signals))
         self._user_signals.setall(True)
