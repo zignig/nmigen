@@ -78,7 +78,10 @@ class Platform(ConstraintManager, metaclass=ABCMeta):
     clocks    = abstractproperty()
 
     def __init__(self):
+        
         super().__init__(self.resources, self.clocks)
+
+        self.extend()
 
         self.extra_files = OrderedDict()
 
@@ -95,6 +98,10 @@ class Platform(ConstraintManager, metaclass=ABCMeta):
         elif not isinstance(content, (str, bytes)):
             raise TypeError("File contents must be str, bytes, or a file-like object")
         self.extra_files[filename] = content
+
+    def extend(self):
+        " add extra parts in a subclass "
+        pass
 
     def build(self, fragment, name="top",
               build_dir="build", do_build=True,
